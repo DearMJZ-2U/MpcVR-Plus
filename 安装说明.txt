@@ -1,0 +1,150 @@
+﻿========================================================
+ MpcVR Plus  安装说明
+========================================================
+
+一、安装前请先确认
+--------------------------------------------------------
+  1. 播放器要关掉。
+     安装要替换渲染器文件，PotPlayer 正在运行时文件被占用，会复制失败。
+     （install.cmd 会自动检测 PotPlayer / MPC-BE / MPC-HC，如果检测到在运行
+       会直接提示你先关闭，不会做一半。）
+
+  2. 需要管理员权限。
+     渲染器要注册到系统（regsvr32），必须用管理员身份运行 install.cmd。
+
+  3. 解压路径不要含中文或特殊符号。
+     建议放在 D:\MpcVR-Plus 这类纯英文路径下。
+     （注意：只是「安装包所在位置」建议用英文路径；安装后的目标目录固定在
+       %LOCALAPPDATA%\MpcVR-DLSS，与你放在哪里无关。）
+
+  4. 不要只复制 MpcVideoRenderer64.ax 一个文件。
+     渲染器还需要同级的 shaders\ 目录，以及 ngx\ amd\ intel\ nvidia-vfg\
+     四个运行库目录。请把整个文件夹一起用。
+
+
+二、安装步骤
+--------------------------------------------------------
+  第 1 步  解压
+      把 MpcVR-Plus.zip 解压出来，得到 MpcVR-Plus 文件夹。
+
+  第 2 步  运行安装脚本
+      在 MpcVR-Plus 文件夹里找到 install.cmd
+      → 右键 →「以管理员身份运行」
+      → 如果弹出「用户账户控制(UAC)」，点「是」。
+
+      脚本会依次做这些事：
+        [1/5] 复制渲染器本体
+        [2/5] 复制着色器
+        [3/5] 复制四套功能运行库（补帧 / 超分）
+        [4/5] 注册渲染器，并清理可能存在的旧用户级覆盖
+        [5/5] 把 PotPlayer 的视频渲染器指向本渲染器
+      最后出现 [OK] MpcVR Plus is installed. 就是装好了，按任意键关闭窗口。
+
+  第 3 步  使用
+      打开 PotPlayer，播放任意视频即可。
+      想改设置：在画面上点右键 →「滤镜」→「MPC Video Renderer」。
+      （如果「滤镜」子菜单里没有它，说明 PotPlayer 还没用上本渲染器，
+        请先确认第 5 步是否成功——见下面「五、装完没生效怎么办」。）
+
+
+三、安装脚本具体改了什么（可核对）
+--------------------------------------------------------
+  A. 复制文件到  %LOCALAPPDATA%\MpcVR-DLSS\
+       MpcVideoRenderer64.ax
+       MpcVideoRenderer64.ax.manifest
+       shaders\            （25 个 .dxil）
+       ngx\                （DLSS 帧生成 + DLSS 超分运行库）
+       amd\fidelityfx\     （FSR 3.1 / FSR 4 ML 运行库）
+       intel\experimental\ （XeSS 运行库）
+       nvidia-vfg\         （NVIDIA VFG 运行库）
+
+  B. 注册渲染器
+       regsvr32 /s "%LOCALAPPDATA%\MpcVR-DLSS\MpcVideoRenderer64.ax"
+       会写入系统级注册表（HKLM\SOFTWARE\Classes\CLSID\），涉及三个 CLSID：
+         渲染器本体  {71F080AA-8661-4093-B15E-4F6903E77D0A}
+         设置页      {DA46D181-07D6-441D-B314-019AEB10148A}
+         信息页      {D697132B-FCA4-4401-8869-D3B39D0750DB}
+
+  C. 清理旧覆盖
+       如果之前做过「用户级」安装，HKCU\Software\Classes\CLSID\ 下会有一份
+       同名条目，它会盖住系统级注册导致新装的渲染器不生效。
+       脚本会把这 3 个 CLSID 的用户级条目删掉，保证系统级注册生效。
+
+  D. 导入默认设置（仅首次安装）
+       仅当 HKCU\Software\MPC-BE Filters\MPC Video Renderer 还不存在时，
+       才导入包内 settings.reg。
+       这样重复安装不会覆盖你自己调好的设置。
+
+  E. 指向 PotPlayer
+       仅当该播放器的配置存在时才修改，写入：
+         HKCU\Software\DAUM\PotPlayerMini64\Settings
+             VideoRen2  = 16
+             SkinUseOsc = 0
+       同时在安装目录留一份 potplayer-PotPlayerMini64.backup，
+       记录你原来的 VideoRen2 值，卸载时会自动还原。
+
+
+四、卸载 / 回退
+--------------------------------------------------------
+  卸载
+      1) 关闭播放器
+      2) 右键 uninstall.cmd →「以管理员身份运行」
+      脚本会：
+         · 把 PotPlayer 的 VideoRen2 还原成安装前的值
+         · 反注册渲染器
+         · 把 %LOCALAPPDATA%\MpcVR-DLSS 整个移进「回收站」
+           （注意是回收站，不是直接删除，误删可以还原）
+      3) 如果还原后 PotPlayer 画面异常，手动改回：
+         选项 → 播放 → 视频渲染器
+
+  只想临时停用、不想卸载
+      在属性页里把「补帧」选成「关」、「超分算法」选成「关闭」即可；
+      或者直接在 PotPlayer 里把视频渲染器换成别的，插件文件留在磁盘上不影响。
+
+
+五、装完没生效怎么办（安装排错）
+--------------------------------------------------------
+  1) 播放器的「滤镜」里找不到 MPC Video Renderer
+     · 确认 install.cmd 是用「以管理员身份运行」执行的，最后出现了 [OK]
+     · 确认 PotPlayer 已经重启（安装后必须重启播放器）
+     · 检查 PotPlayer 设置：
+         选项 → 播放 → 视频渲染器，看是不是 "MPC Video Renderer"
+       如果不是，手动选上它
+     · 检查注册表（在「运行」里输入 regedit）：
+         HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\
+             {71F080AA-8661-4093-B15E-4F6903E77D0A}\InprocServer32
+       默认值应指向 %LOCALAPPDATA%\MpcVR-DLSS\MpcVideoRenderer64.ax
+     · 如果 HKLM 下没有、只有 HKCU 下有，说明脚本的「清理旧覆盖」没生效
+       （可能没拿到管理员权限）。用管理员重跑一次 install.cmd。
+
+  2) install.cmd 报 "Copying files ... failed"
+     · 播放器没关干净。检查任务管理器里有没有 PotPlayerMini64.exe，
+       结束它再重跑。
+
+  3) install.cmd 报 "Administrator rights are required"
+     · 没有以管理员身份运行。右键 →「以管理员身份运行」。
+
+  4) install.cmd 报 "The package is incomplete"
+     · 说明压缩包没解压完整，或有文件被杀毒软件删了。
+       脚本会列出缺哪个文件，重新完整解压一次即可。
+
+  5) 重新安装 PotPlayer 之后插件失效了
+     · 这是正常的：重装 PotPlayer 会把它的配置重置，视频渲染器选择被清掉。
+       解决办法：重新运行一次 install.cmd（管理员）即可恢复，无需重装插件。
+       本插件的注册和文件都在系统里，不会被 PotPlayer 的安装/卸载影响。
+
+  6) 装完播放黑屏 / 花屏
+     · 先看日志：%LOCALAPPDATA%\MpcVR-DLSS\logs\fg.log
+     · 在属性页把「补帧」设为「关」，确认基础播放是否正常
+     · 详见【使用教程.txt】最后一节「常见问题」
+
+
+六、安装信息速查
+--------------------------------------------------------
+  安装目录      %LOCALAPPDATA%\MpcVR-DLSS
+  运行日志      %LOCALAPPDATA%\MpcVR-DLSS\logs\fg.log
+  渲染器设置    HKCU\Software\MPC-BE Filters\MPC Video Renderer
+  PotPlayer 设置 HKCU\Software\DAUM\PotPlayerMini64\Settings
+                 （VideoRen2=16 表示使用本渲染器）
+  构建标识      a37f5bec9b40a44f（可在属性页「信息」页核对）
+========================================================
